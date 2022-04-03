@@ -1,21 +1,33 @@
 package main
 
 import (
-	"github.com/elastic/go-elasticsearch/v8"
 	"log"
+	"net/http"
+	"os"
+	"simple-search-es/cmd"
+	"simple-search-es/internal/handlers/adverthdl"
+	"simple-search-es/internal/repository/advertrepo"
+	"simple-search-es/internal/services/advertsvc"
+
+	"github.com/gorilla/mux"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
-	es, err := elasticsearch.NewDefaultClient()
-	if err != nil {
-		log.Fatalf("Error creating the client: %s", err)
-	}
-	log.Println(elasticsearch.Version)
+	elastic := cmd.ConfigEs()
 
-	res, err := es.Info()
+	advertRepo := advertrepo.New(*elastic)
+	advertSvc := advertsvc.New(advertRepo)
+	advertHdl := adverthdl.New(advertSvc)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/api/ads", advertHdl.Create).Methods(http.MethodPost)
+	router.HandleFunc("/api/ads/{id}", advertHdl.SearchOne).Methods(http.MethodGet)
+	router.HandleFunc("/api/ads", advertHdl.Search).Methods(http.MethodGet)
+	router.HandleFunc("/api/ads/{id}", advertHdl.Delete).Methods(http.MethodDelete)
+
+	err := http.ListenAndServe(":"+os.Getenv("APP_SERVER_PORT"), router)
 	if err != nil {
-		log.Fatalf("Error getting response: %s", err)
+		log.Fatal(err)
 	}
-	defer res.Body.Close()
-	log.Println(res)
 }
